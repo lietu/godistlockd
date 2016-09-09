@@ -37,7 +37,6 @@ type LockManager struct {
 	requestChan chan *LockRequest
 	quitChan    chan bool
 	locks       Locks
-	queue       LockQueue
 }
 
 func (lm *LockManager) Stop() {
@@ -150,6 +149,7 @@ func appendToQueue(queue *LockQueue, receiver *LockRequest) {
 
 func (lm *LockManager) Run() {
 	queueCheckInterval := time.Millisecond * 10
+	queue := LockQueue{}
 
 	for {
 		select {
@@ -173,7 +173,7 @@ func (lm *LockManager) Run() {
 					if DEBUG {
 						log.Printf("Lock %s was taken, and request wants to wait for it.", request.Name)
 					}
-					appendToQueue(&lm.queue, request)
+					appendToQueue(&queue, request)
 				}
 			} else if request.Type == TYPE_TRY {
 				if clientId == "" {
@@ -209,7 +209,7 @@ func (lm *LockManager) Run() {
 
 		case <-time.After(queueCheckInterval):
 			newQueue := LockQueue{}
-			for _, requests := range lm.queue {
+			for _, requests := range queue {
 				for _, request := range requests {
 					locked := lm.isLocked(request.Name)
 
@@ -223,7 +223,7 @@ func (lm *LockManager) Run() {
 					}
 				}
 			}
-			lm.queue = newQueue
+			queue = newQueue
 
 		case <-lm.quitChan:
 			if DEBUG {
@@ -249,7 +249,6 @@ func NewLockManager() *LockManager {
 	lm := LockManager{}
 
 	lm.locks = map[string]*Lock{}
-	lm.queue = LockQueue{}
 
 	lm.requestChan = make(chan *LockRequest)
 	lm.quitChan = make(chan bool)
