@@ -64,7 +64,9 @@ func (r *Relay) HandleOutgoing() {
 }
 
 func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
-	// TODO: Register to relay manager
+	r.RelayId = msg.Id
+	// Not handling failures here so other server always gets a valid response
+	r.Server.RelayManager.SetRelay(r)
 
 	out, err := messages.NewRelayHowdy([]string{msg.Nonce, r.Server.Id, r.Server.Version})
 
@@ -183,6 +185,7 @@ func NewRelay(server *Server, connection net.Conn) *Relay {
 	r := Relay{}
 
 	r.Server = server
+	r.Alive = true
 	r.Connection = connection
 	r.closeMutex = &sync.Mutex{}
 	r.outgoing = make(chan *OutMsg)

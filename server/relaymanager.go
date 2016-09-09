@@ -15,12 +15,13 @@ type MessageList []messages.Message
 var WAIT_TIMEOUT = time.Second
 
 type RelayManager struct {
-	Server           *Server
-	quitChan         chan bool
-	relayAddresses   []string
-	relayConnections RelayConnections
-	serverIds        map[string]string
-	serverMutex      *sync.Mutex
+	Server             *Server
+	quitChan           chan bool
+	relayAddresses     []string
+	relayConnections   RelayConnections
+	pendingConnections []string
+	serverIds          map[string]string
+	serverMutex        *sync.Mutex
 }
 
 func (rm *RelayManager) Stop() {
@@ -33,7 +34,9 @@ func (rm *RelayManager) GetRelayConnections() (relays RelayList) {
 
 	relays = RelayList{}
 	for _, r := range rm.relayConnections {
-		relays = append(relays, r)
+		if r.Alive {
+			relays = append(relays, r)
+		}
 	}
 
 	return
@@ -108,7 +111,23 @@ func (rm *RelayManager) getMissingRelays() []string {
 		}
 	}
 
-	return missing
+	// Filter out already pending connections
+	notPending := []string{}
+	for _, addr := range missing {
+		add := true
+		for _, a := range rm.pendingConnections {
+			if a == addr {
+				add = false
+				break
+			}
+		}
+
+		if add {
+			notPending = append(notPending, addr)
+		}
+	}
+
+	return notPending
 }
 
 func (rm *RelayManager) setServerId(addr string, serverId string) {
@@ -118,7 +137,7 @@ func (rm *RelayManager) setServerId(addr string, serverId string) {
 	rm.serverIds[addr] = serverId
 }
 
-func (rm *RelayManager) setRelay(relay *Relay) bool {
+func (rm *RelayManager) SetRelay(relay *Relay) bool {
 	if relay.RelayId == rm.Server.Id {
 		// Connection to self
 		return false
@@ -138,8 +157,33 @@ func (rm *RelayManager) setRelay(relay *Relay) bool {
 	return true
 }
 
+func (rm *RelayManager) addPendingConnection(addr string) {
+	rm.serverMutex.Lock()
+	defer rm.serverMutex.Unlock()
+
+	rm.pendingConnections = append(rm.pendingConnections, addr)
+}
+
+
+func (rm *RelayManager) removePendingConnection(addr string) {
+	rm.serverMutex.Lock()
+	defer rm.serverMutex.Unlock()
+
+	pendingConnections := []string{}
+	for _, a := range rm.pendingConnections {
+		if a == addr {
+			continue
+		}
+
+		pendingConnections = append(pendingConnections, a)
+	}
+
+	rm.pendingConnections = pendingConnections
+}
+
 func (rm *RelayManager) connect(addr string) {
 	log.Printf("Connecting to relay %s", addr)
+	rm.addPendingConnection(addr)
 
 	// Initiate connection to target address
 	conn, err := net.Dial("tcp", addr)
@@ -159,15 +203,17 @@ func (rm *RelayManager) connect(addr string) {
 	// TODO: Track open connections per destination address as well
 
 	// Perform HELLO <-> HELLO exchange
-	r.DoHello(func () {
+	r.DoHello(func() {
 		log.Printf("Finished saying hellos with %s (%s)", addr, r.RelayId)
 		// Update server address<->ID map
 		rm.setServerId(addr, r.RelayId)
 
-		if !rm.setRelay(r) {
+		if !rm.SetRelay(r) {
 			log.Printf("Already had a connection with %s, disconnecting", r.RelayId)
 			r.Close()
 		}
+
+		rm.removePendingConnection(addr)
 	})
 }
 
@@ -180,7 +226,7 @@ func (rm *RelayManager) checkRelays() {
 }
 
 func (rm *RelayManager) Run() {
-	checkRelaysInterval := time.Millisecond * 5000
+	checkRelaysInterval := time.Millisecond * 500
 	rm.checkRelays()
 
 	for {
@@ -189,6 +235,8 @@ func (rm *RelayManager) Run() {
 			return
 		case <-time.After(checkRelaysInterval):
 			rm.checkRelays()
+
+			log.Printf("%d relays connected", len(rm.GetRelayConnections()))
 
 			if !rm.Server.Testing {
 				break
@@ -218,6 +266,7 @@ func NewRelayManager(server *Server) *RelayManager {
 	rm.serverMutex = &sync.Mutex{}
 	rm.serverIds = map[string]string{}
 	rm.relayConnections = RelayConnections{}
+	rm.pendingConnections = []string{}
 
 	return &rm
 }
