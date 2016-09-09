@@ -13,7 +13,7 @@ type Relay struct {
 	RelayId       string
 	Connection    net.Conn
 	outgoing      chan *OutMsg
-	alive         bool
+	Alive         bool
 	responseQueue map[string]chan messages.Message
 	closeMutex    *sync.Mutex
 	responseMutex *sync.Mutex
@@ -24,8 +24,8 @@ func (r *Relay) Close() {
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
 
-	if r.alive {
-		r.alive = false
+	if r.Alive {
+		r.Alive = false
 		r.Connection.Close()
 		close(r.outgoing)
 
@@ -38,11 +38,11 @@ func (r *Relay) Close() {
 
 func (r *Relay) Error(message string) {
 	msg, _ := messages.NewClientErrResponse(message)
-	r.Outgoing(msg.ToBytes())
+	r.SendBytes(msg.ToBytes())
 	r.Close()
 }
 
-func (r *Relay) Outgoing(data []byte) {
+func (r *Relay) SendBytes(data []byte) {
 	om := OutMsg{
 		data,
 		make(chan bool),
@@ -55,7 +55,7 @@ func (r *Relay) Outgoing(data []byte) {
 func (r *Relay) HandleOutgoing() {
 	// Read until channel is closed
 	for outgoing := range r.outgoing {
-		log.Printf("%s <- %s", r.RelayId, outgoing.Data)
+		//log.Printf("%s <- %s", r.RelayId, string(outgoing.Data[:]))
 		r.Connection.Write(outgoing.Data)
 		r.Connection.Write([]byte("\n"))
 		outgoing.Done <- true
@@ -64,8 +64,6 @@ func (r *Relay) HandleOutgoing() {
 }
 
 func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
-	log.Printf("%s HELLO from version %s", r.RelayId, msg.Version)
-
 	// TODO: Register to relay manager
 
 	out, err := messages.NewRelayHowdy([]string{msg.Nonce, r.Server.Id, r.Server.Version})
@@ -74,7 +72,7 @@ func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
 		log.Fatalln(err)
 	}
 
-	r.Outgoing(out.ToBytes())
+	r.SendBytes(out.ToBytes())
 }
 
 func (r *Relay) clearNonce(nonce string) {
@@ -88,7 +86,7 @@ func (r *Relay) clearNonce(nonce string) {
 	r.responseQueue = responseQueue
 }
 
-func (r *Relay) gotResponse(msg messages.RelayResponse) {
+func (r *Relay) gotResponse(msg messages.RelayMessage) {
 	r.responseMutex.Lock()
 	defer r.responseMutex.Unlock()
 
@@ -111,7 +109,7 @@ func (r *Relay) Incoming(src []byte) {
 	}
 
 	if messages.IsRelayResponse(keyword) {
-		r.gotResponse(msg.(messages.RelayResponse))
+		r.gotResponse(msg.(messages.RelayMessage))
 		return
 	}
 
@@ -126,7 +124,7 @@ func (r *Relay) Incoming(src []byte) {
 
 func (r *Relay) Expect(nonce string, onReceive func(messages.Message)) {
 	if DEBUG {
-		log.Printf("Relay %s waiting for message with nonce %s", r.RelayId, nonce)
+		//log.Printf("Relay %s waiting for message with nonce %s", r.RelayId, nonce)
 	}
 
 	r.responseMutex.Lock()
@@ -136,6 +134,7 @@ func (r *Relay) Expect(nonce string, onReceive func(messages.Message)) {
 
 	go func() {
 		onReceive(<-receiver)
+		//log.Printf("Relay %s received msg for nonce %s", r.RelayId, nonce)
 	}()
 
 	r.responseQueue[nonce] = receiver
@@ -157,7 +156,7 @@ func (r *Relay) DoHello(onComplete func()) {
 		log.Fatalln(err)
 	}
 
-	r.Outgoing(msg.ToBytes())
+	r.SendBytes(msg.ToBytes())
 }
 
 func (r *Relay) Run() {
@@ -170,7 +169,7 @@ func (r *Relay) Run() {
 		// If this data is ever used for longer than a single iteration it
 		// must be copied.
 		line := scanner.Bytes()
-		log.Printf("%s -> %s", r.RelayId, string(line[:]))
+		//log.Printf("%s -> %s", r.RelayId, string(line[:]))
 		r.Incoming(line)
 	}
 

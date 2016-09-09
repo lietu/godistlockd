@@ -25,6 +25,15 @@ func (msg *RelayIncomingHello) ToBytes() []byte {
 	return ToBytes("HELLO", args)
 }
 
+func (msg *RelayIncomingHello) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+
+func (msg *RelayIncomingHello) GetNonce() string {
+	return msg.Nonce
+}
+
 func NewRelayIncomingHello(args []string) (msg Message, err error) {
 	if len(args) != 3 {
 		err = ERR_INVALID_MESSAGE

@@ -12,6 +12,7 @@ type LockStatus map[string]Lock;
 type Server struct {
 	Id           string
 	Version      string
+	Testing      bool
 	nonceChan    chan uint64
 	lockStatus   LockStatus
 	LockManager  *LockManager
@@ -34,8 +35,7 @@ func (s *Server) nonceGenerator() {
 }
 
 func (s *Server) GetRelayAddresses() []string {
-	return []string{"localhost:20000"}
-	return []string{"localhost:20000", "localhost:20001", "localhost:20002"}
+	return []string{"localhost:20000", "localhost:20001", "localhost:20002", "localhost:20003"}
 }
 
 func NewServer() *Server {

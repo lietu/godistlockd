@@ -12,11 +12,6 @@ var responseTypes = []string{
 	"CONF",
 }
 
-type RelayResponse interface {
-	GetNonce() string
-	ToBytes() []byte
-}
-
 type RelayHowdy struct {
 	Nonce   string
 	Id      string
@@ -31,6 +26,10 @@ func (msg *RelayHowdy) ToBytes() []byte {
 	}
 
 	return ToBytes("HOWDY", args)
+}
+
+func (msg *RelayHowdy) SetNonce(nonce string) {
+	msg.Nonce = nonce
 }
 
 func (msg *RelayHowdy) GetNonce() string {

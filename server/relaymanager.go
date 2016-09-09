@@ -1,7 +1,7 @@
 package server
 
 import (
-	//"github.com/lietu/godistlock/messages"
+	"github.com/lietu/godistlock/messages"
 	"time"
 	"sync"
 	"net"
@@ -9,6 +9,10 @@ import (
 )
 
 type RelayConnections map[string]*Relay
+type RelayList []*Relay
+type MessageList []messages.Message
+
+var WAIT_TIMEOUT = time.Second
 
 type RelayManager struct {
 	Server           *Server
@@ -23,6 +27,65 @@ func (rm *RelayManager) Stop() {
 	rm.quitChan <- true
 }
 
+func (rm *RelayManager) GetRelayConnections() (relays RelayList) {
+	rm.serverMutex.Lock()
+	defer rm.serverMutex.Unlock()
+
+	relays = RelayList{}
+	for _, r := range rm.relayConnections {
+		relays = append(relays, r)
+	}
+
+	return
+}
+
+func waitForMessage(nonce string, relay *Relay, out chan messages.Message) {
+	lock := sync.Mutex{}
+	sent := false
+
+	relay.Expect(nonce, func(result messages.Message) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		if !sent {
+			sent = true
+			out <- result
+		}
+	})
+
+	go func() {
+		time.Sleep(WAIT_TIMEOUT)
+
+		lock.Lock()
+		defer lock.Unlock()
+		if !sent {
+			sent = true
+			out <- nil
+		}
+	}()
+}
+
+func (rm *RelayManager) GetRelayResponses(request messages.RelayMessage) (results MessageList) {
+	relays := rm.GetRelayConnections()
+	count := len(relays)
+
+	responses := make(chan messages.Message)
+
+	for _, relay := range relays {
+		nonce := rm.Server.GetNonceString()
+		waitForMessage(nonce, relay, responses)
+		request.SetNonce(nonce)
+		go relay.SendBytes(request.ToBytes())
+	}
+
+	results = MessageList{}
+	for i := 0; i < count; i++ {
+		results = append(results, <-responses)
+	}
+
+	return
+}
+
 func (rm *RelayManager) getMissingRelays() []string {
 	rm.serverMutex.Lock()
 	defer rm.serverMutex.Unlock()
@@ -32,7 +95,6 @@ func (rm *RelayManager) getMissingRelays() []string {
 	// Addresses that I don't know the server ID for
 	for _, addr := range rm.relayAddresses {
 		if _, ok := rm.serverIds[addr]; !ok {
-			log.Printf("Missing 1 %s", addr)
 			missing = append(missing, addr)
 		}
 	}
@@ -66,7 +128,9 @@ func (rm *RelayManager) setRelay(relay *Relay) bool {
 	defer rm.serverMutex.Unlock()
 
 	if _, ok := rm.relayConnections[relay.RelayId]; ok {
-		return false
+		if rm.relayConnections[relay.RelayId].Alive {
+			return false
+		}
 	}
 
 	rm.relayConnections[relay.RelayId] = relay
@@ -125,6 +189,23 @@ func (rm *RelayManager) Run() {
 			return
 		case <-time.After(checkRelaysInterval):
 			rm.checkRelays()
+
+			if !rm.Server.Testing {
+				break
+			}
+
+			go func() {
+				msg, _ := messages.NewRelayIncomingHello([]string{rm.Server.Id, rm.Server.Version, "nonce"})
+
+				start := time.Now()
+				responses := rm.GetRelayResponses(msg.(messages.RelayMessage))
+				duration := time.Since(start)
+
+				log.Printf("Got %d responses in %f s", len(responses), float32(duration) / float32(time.Second))
+				for _, response := range responses {
+					log.Printf("%+v", response)
+				}
+			}()
 		}
 	}
 }

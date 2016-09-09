@@ -35,6 +35,8 @@ Other lock managers tend to have issues:
 1. They rarely support more advanced uses of locks, such as "fencing", which can be used to further guarantee durability.
 
 1. Many of the systems are not especially fault tolerant, and if a single server has issues the whole locking system fails.
+
+1. They might have unexpected limits, such as that a client can only keep one lock at a time. Worst case, the previously held lock gets released without the developer noticing it.
  
 GoDistLock has been built specifically with locking in mind, and while it likely is not perfect, it's aiming to be a step up from systems with above mentioned issues.
 
