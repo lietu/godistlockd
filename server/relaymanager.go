@@ -75,7 +75,7 @@ func (rm *RelayManager) GetRelayResponses(request messages.RelayMessage) (result
 	responses := make(chan messages.Message)
 
 	for _, relay := range relays {
-		nonce := rm.Server.GetNonceString()
+		nonce := relay.Nonce.String()
 		waitForMessage(nonce, relay, responses)
 		request.SetNonce(nonce)
 		go relay.SendBytes(request.ToBytes())
@@ -226,7 +226,7 @@ func (rm *RelayManager) checkRelays() {
 }
 
 func (rm *RelayManager) Run() {
-	checkRelaysInterval := time.Millisecond * 500
+	checkRelaysInterval := time.Millisecond
 	rm.checkRelays()
 
 	for {

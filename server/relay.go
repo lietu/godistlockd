@@ -17,6 +17,7 @@ type Relay struct {
 	responseQueue map[string]chan messages.Message
 	closeMutex    *sync.Mutex
 	responseMutex *sync.Mutex
+	Nonce         *NonceGenerator
 }
 
 func (r *Relay) Close() {
@@ -143,7 +144,7 @@ func (r *Relay) Expect(nonce string, onReceive func(messages.Message)) {
 }
 
 func (r *Relay) DoHello(onComplete func()) {
-	nonce := r.Server.GetNonceString()
+	nonce := r.Nonce.String()
 	r.Expect(nonce, func(msg messages.Message) {
 		hello := msg.(*messages.RelayHowdy)
 
@@ -191,6 +192,7 @@ func NewRelay(server *Server, connection net.Conn) *Relay {
 	r.outgoing = make(chan *OutMsg)
 	r.responseMutex = &sync.Mutex{}
 	r.responseQueue = map[string]chan messages.Message{}
+	r.Nonce = NewNonceGenerator()
 
 	if connection != nil {
 		r.RelayId = connection.RemoteAddr().String()

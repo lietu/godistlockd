@@ -4,7 +4,6 @@ import (
 	"net"
 	"log"
 	"fmt"
-	"strconv"
 )
 
 type LockStatus map[string]Lock;
@@ -13,25 +12,9 @@ type Server struct {
 	Id           string
 	Version      string
 	Testing      bool
-	nonceChan    chan uint64
 	lockStatus   LockStatus
 	LockManager  *LockManager
 	RelayManager *RelayManager
-}
-
-func (s *Server) GetNonce() uint64 {
-	return <-s.nonceChan
-}
-
-func (s *Server) GetNonceString() string {
-	return strconv.FormatUint(s.GetNonce(), 10)
-}
-
-func (s *Server) nonceGenerator() {
-	var i uint64
-	for i = 1; ; i += 1 {
-		s.nonceChan <- i
-	}
 }
 
 func (s *Server) GetRelayAddresses() []string {
@@ -40,7 +23,6 @@ func (s *Server) GetRelayAddresses() []string {
 
 func NewServer() *Server {
 	s := Server{}
-	s.nonceChan = make(chan uint64)
 	s.lockStatus = LockStatus{}
 	s.LockManager = NewLockManager()
 	// TODO: Ensure settings are loaded before this line
@@ -100,7 +82,6 @@ func (s *Server) relayListener(port int) {
 }
 
 func (s *Server) Run(clientPort int, relayPort int) {
-	go s.nonceGenerator()
 	go s.LockManager.Run()
 	go s.RelayManager.Run()
 	go s.clientListener(clientPort)
