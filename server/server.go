@@ -4,17 +4,22 @@ import (
 	"net"
 	"log"
 	"fmt"
+	"sync"
+	"time"
 )
 
 type LockStatus map[string]Lock;
 
 type Server struct {
-	Id           string
-	Version      string
-	Testing      bool
-	lockStatus   LockStatus
-	LockManager  *LockManager
-	RelayManager *RelayManager
+	Id                  string
+	Version             string
+	Testing             bool
+	lockStatus          LockStatus
+	LockManager         *LockManager
+	RelayManager        *RelayManager
+	clientPort          int
+	statusMutex         sync.Mutex
+	listeningForClients bool
 }
 
 func (s *Server) GetRelayAddresses() []string {
@@ -27,6 +32,8 @@ func NewServer() *Server {
 	s.LockManager = NewLockManager()
 	// TODO: Ensure settings are loaded before this line
 	s.RelayManager = NewRelayManager(&s)
+	s.statusMutex = sync.Mutex{}
+	s.listeningForClients = false
 
 	return &s
 }
@@ -81,9 +88,25 @@ func (s *Server) relayListener(port int) {
 	}
 }
 
+func (s *Server) RelayManagerReady(ready bool) {
+	s.statusMutex.Lock()
+	defer s.statusMutex.Unlock()
+
+	if ready && !s.listeningForClients {
+		s.listeningForClients = true
+
+		log.Println("RelayManager is ready and we can start listening for clients")
+		go s.clientListener(s.clientPort)
+	}
+}
+
+func (s *Server) GetLock(client *Client, name string, timeout time.Duration) {
+	
+}
+
 func (s *Server) Run(clientPort int, relayPort int) {
 	go s.LockManager.Run()
 	go s.RelayManager.Run()
-	go s.clientListener(clientPort)
+	s.clientPort = clientPort
 	s.relayListener(relayPort)
 }

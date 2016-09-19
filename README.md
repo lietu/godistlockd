@@ -60,6 +60,15 @@ For example if you are running a cluster of 3 servers, 1 server can go down and 
 Sharding is left to the user due to the vast number of possible sharding strategies users might need.
 
 
+## Known issues
+
+If a server dies while clients are holding locks, they cannot release them anymore. Would be nice if a client could reconnect to another server and release the locks? Probably shouldn't release any locks the server was holding when connection to it dies in the cluster?
+
+When a server connects to the relay network it should likely synchronize the current status of locks from the other servers so you can do a rolling update between servers.
+
+A server should react to a "gentle" SIGINT/SIGTERM by preventing incoming lock requests, and blocking until it's locks have been released or time out.
+
+
 ## Ideas, research, etc.
 
 

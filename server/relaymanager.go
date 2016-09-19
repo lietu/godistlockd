@@ -6,6 +6,7 @@ import (
 	"sync"
 	"net"
 	"log"
+	"math"
 )
 
 type RelayConnections map[string]*Relay
@@ -15,13 +16,16 @@ type MessageList []messages.Message
 var WAIT_TIMEOUT = time.Second
 
 type RelayManager struct {
-	Server             *Server
-	quitChan           chan bool
-	relayAddresses     []string
-	relayConnections   RelayConnections
-	pendingConnections []string
-	serverIds          map[string]string
-	serverMutex        *sync.Mutex
+	Server                *Server
+	quitChan              chan bool
+	relayAddresses        []string
+	relayConnections      RelayConnections
+	pendingConnections    []string
+	serverIds             map[string]string
+	serverMutex           *sync.Mutex
+	quorumNeed            int
+	canHaveQuorum         bool
+	relayAddressesHasSelf bool
 }
 
 func (rm *RelayManager) Stop() {
@@ -137,14 +141,26 @@ func (rm *RelayManager) setServerId(addr string, serverId string) {
 	rm.serverIds[addr] = serverId
 }
 
+func (rm *RelayManager) updateQuorum() {
+	connections := len(rm.GetRelayConnections())
+	rm.canHaveQuorum = (connections >= rm.quorumNeed)
+
+	rm.Server.RelayManagerReady(rm.canHaveQuorum)
+}
+
 func (rm *RelayManager) SetRelay(relay *Relay) bool {
+	rm.serverMutex.Lock()
+	defer rm.serverMutex.Unlock()
+
 	if relay.RelayId == rm.Server.Id {
+		if !rm.relayAddressesHasSelf {
+			rm.relayAddressesHasSelf = true
+			rm.quorumNeed = calculateQuorum(len(rm.relayAddresses))
+			go rm.updateQuorum()
+		}
 		// Connection to self
 		return false
 	}
-
-	rm.serverMutex.Lock()
-	defer rm.serverMutex.Unlock()
 
 	if _, ok := rm.relayConnections[relay.RelayId]; ok {
 		if rm.relayConnections[relay.RelayId].Alive {
@@ -153,6 +169,7 @@ func (rm *RelayManager) SetRelay(relay *Relay) bool {
 	}
 
 	rm.relayConnections[relay.RelayId] = relay
+	go rm.updateQuorum()
 
 	return true
 }
@@ -163,7 +180,6 @@ func (rm *RelayManager) addPendingConnection(addr string) {
 
 	rm.pendingConnections = append(rm.pendingConnections, addr)
 }
-
 
 func (rm *RelayManager) removePendingConnection(addr string) {
 	rm.serverMutex.Lock()
@@ -199,8 +215,6 @@ func (rm *RelayManager) connect(addr string) {
 	// Start up new relay handler
 	r := NewRelay(rm.Server, conn)
 	go r.Run()
-
-	// TODO: Track open connections per destination address as well
 
 	// Perform HELLO <-> HELLO exchange
 	r.DoHello(func() {
@@ -258,6 +272,10 @@ func (rm *RelayManager) Run() {
 	}
 }
 
+func calculateQuorum(servers int) int {
+	return (int)(math.Ceil((float64)(servers) / 100.0 * 50.01))
+}
+
 func NewRelayManager(server *Server) *RelayManager {
 	rm := RelayManager{}
 	rm.Server = server
@@ -267,6 +285,9 @@ func NewRelayManager(server *Server) *RelayManager {
 	rm.serverIds = map[string]string{}
 	rm.relayConnections = RelayConnections{}
 	rm.pendingConnections = []string{}
+	rm.quorumNeed = calculateQuorum(len(rm.relayAddresses) + 1)
+	rm.relayAddressesHasSelf = false
+	rm.canHaveQuorum = false
 
 	return &rm
 }
