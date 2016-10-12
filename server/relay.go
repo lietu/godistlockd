@@ -86,18 +86,22 @@ func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
 }
 
 func (r *Relay) HandleProp(msg *messages.RelayIncomingProp) {
-	// 0 = ok, 1 = held by this server, 2 = held by another relay
+	// 0 = ok, 1 = held by this server, 2 = held by another relay, 3 = can't have quorum
 	status := 0
 
-	// Try to get a preliminary lock
-	lock := r.Server.LockManager.TryGet(r.RelayId, msg.Lock, time.Second)
+	if !r.Server.RelayManager.CanHaveQuorum {
+		status = 3
+	} else {
+		// Try to get a preliminary lock
+		lock := r.Server.LockManager.TryGet(r.RelayId, msg.Lock, time.Second)
 
-	if lock == nil {
-		clientId := r.Server.LockManager.WhoHas(msg.Lock)
-		if isRelayId(clientId) {
-			status = 2
-		} else {
-			status = 1
+		if lock == nil {
+			clientId := r.Server.LockManager.WhoHas(msg.Lock)
+			if isRelayId(clientId) {
+				status = 2
+			} else {
+				status = 1
+			}
 		}
 	}
 

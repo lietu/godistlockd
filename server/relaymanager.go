@@ -24,7 +24,7 @@ type RelayManager struct {
 	serverIds             map[string]string
 	serverMutex           *sync.Mutex
 	quorumNeed            int
-	canHaveQuorum         bool
+	CanHaveQuorum         bool
 	relayAddressesHasSelf bool
 }
 
@@ -143,9 +143,9 @@ func (rm *RelayManager) setServerId(addr string, serverId string) {
 
 func (rm *RelayManager) updateQuorum() {
 	connections := len(rm.GetRelayConnections())
-	rm.canHaveQuorum = (connections >= rm.quorumNeed)
+	rm.CanHaveQuorum = (connections >= rm.quorumNeed)
 
-	rm.Server.RelayManagerReady(rm.canHaveQuorum)
+	rm.Server.RelayManagerReady(rm.CanHaveQuorum)
 }
 
 func (rm *RelayManager) SetRelay(relay *Relay) bool {
@@ -245,7 +245,7 @@ func (rm *RelayManager) checkRelays() {
 }
 
 func (rm *RelayManager) ProposeLock(name string) bool {
-	if !rm.canHaveQuorum {
+	if !rm.CanHaveQuorum {
 		log.Print("Can't have quorum, not gonna propose locking")
 		return false
 	}
@@ -276,7 +276,7 @@ func (rm *RelayManager) ProposeLock(name string) bool {
 
 
 func (rm *RelayManager) SchedLock(name string) bool {
-	if !rm.canHaveQuorum {
+	if !rm.CanHaveQuorum {
 		log.Print("Can't have quorum, not gonna request locking")
 		return false
 	}
@@ -308,7 +308,7 @@ func (rm *RelayManager) SchedLock(name string) bool {
 
 
 func (rm *RelayManager) CommLock(name string, timeout time.Duration) bool {
-	if !rm.canHaveQuorum {
+	if !rm.CanHaveQuorum {
 		log.Print("Can't have quorum, can't commit lock")
 		return false
 	}
@@ -388,7 +388,7 @@ func NewRelayManager(server *Server) *RelayManager {
 	rm.pendingConnections = []string{}
 	rm.quorumNeed = calculateQuorum(len(rm.relayAddresses) + 1)
 	rm.relayAddressesHasSelf = false
-	rm.canHaveQuorum = false
+	rm.CanHaveQuorum = false
 
 	return &rm
 }
