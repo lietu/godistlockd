@@ -102,19 +102,21 @@ func (s *Server) RelayManagerReady(ready bool) {
 	}
 }
 
-func (s *Server) DoLock(clientId string, name string, timeout time.Duration) bool {
+func (s *Server) DoLock(clientId string, name string, timeout time.Duration) *Lock {
+	// TODO: Retry until successful
+
 	start := time.Now()
 	// Establish a temporary lock locally
 	lock := s.LockManager.TryGet(clientId, name, TEMP_TIMEOUT)
 
 	if lock == nil {
-		return false
+		return nil
 	}
 
 	ok := s.RelayManager.ProposeLock(name)
 	if !ok {
 		s.LockManager.Release(clientId, name)
-		return false
+		return nil
 	}
 
 	lock.MakeValidFor(timeout)
@@ -122,7 +124,7 @@ func (s *Server) DoLock(clientId string, name string, timeout time.Duration) boo
 	ok = s.RelayManager.SchedLock(name)
 	if !ok {
 		s.LockManager.Release(clientId, name)
-		return false
+		return nil
 	}
 
 	lock.MakeValidFor(timeout)
@@ -130,7 +132,7 @@ func (s *Server) DoLock(clientId string, name string, timeout time.Duration) boo
 	ok = s.RelayManager.CommLock(name, timeout)
 	if !ok {
 		s.LockManager.Release(clientId, name)
-		return false
+		return nil
 	}
 
 	lock.MakeValidFor(timeout)
@@ -139,7 +141,7 @@ func (s *Server) DoLock(clientId string, name string, timeout time.Duration) boo
 
 	log.Printf("Locked %s in %f s", name, float32(duration) / float32(time.Second))
 
-	return true
+	return lock
 }
 
 func (s *Server) Run(clientPort int, relayPort int) {

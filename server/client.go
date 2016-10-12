@@ -93,7 +93,7 @@ func (c *Client) HandleHello(msg *messages.ClientIncomingHello) {
 func (c *Client) HandleOn(msg *messages.ClientIncomingOn) {
 	log.Printf("%s requesting lock %s", c.ClientId, msg.Lock)
 
-	lock := c.Server.LockManager.GetLock(c.ClientId, msg.Lock, msg.Timeout)
+	lock := c.Server.DoLock(c.ClientId, msg.Lock, msg.Timeout)
 	out := messages.NewClientOutgoingGive(msg.Nonce, lock.Fence)
 	c.Outgoing(out.ToBytes())
 
