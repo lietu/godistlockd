@@ -49,5 +49,5 @@ Each message consists of the keyword (e.g. `HELLO`), space separated arguments, 
 
  - `HOWDY <nonce> <id> <version>` -> Hi, I'm <id> running <version>
  - `STAT <nonce> <status>` -> Response to PROP: status 0 = ok, 1 = held by this server, 2 = held by another relay
- - `ACK <nonce> <ok>` -> Acknowledging SCHED: ok 1 = ok, 0 = err
- - `CONF <nonce>` -> Confirming commit 1/0 = ok/err
+ - `ACK <nonce> <status>` -> Acknowledging SCHED: status 1 = ok, 0 = err
+ - `CONF <nonce> <status>` -> Confirming commit 1/0 = ok/err

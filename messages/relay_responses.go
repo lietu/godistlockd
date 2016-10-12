@@ -1,9 +1,8 @@
 package messages
 
-// `HOWDY <nonce> <id> <version>` -> Hi, I'm <id> running <version>
-// `STAT <nonce> <status>` -> Response to PROP: status 0 = ok, 1 = held by this server, 2 = held by another relay
-// `ACK <nonce> <ok>` -> Acknowledging SCHED: ok 1 = ok, 0 = err
-// `CONF <nonce>` -> Confirming commit 1/0 = ok/err
+import (
+	"strconv"
+)
 
 var responseTypes = []string{
 	"HOWDY",
@@ -11,6 +10,10 @@ var responseTypes = []string{
 	"ACK",
 	"CONF",
 }
+
+//
+// `HOWDY <nonce> <id> <version>` -> Hi, I'm <id> running <version>//
+//
 
 type RelayHowdy struct {
 	Nonce   string
@@ -52,6 +55,146 @@ func NewRelayHowdy(args []string) (msg Message, err error) {
 	return
 }
 
+//
+// `STAT <nonce> <status>` -> Response to PROP: status 0 = ok, 1 = held by this server, 2 = held by another relay
+//
+
+type RelayStat struct {
+	Nonce   string
+	Status  int
+}
+
+func (msg *RelayStat) ToBytes() []byte {
+	args := []string{
+		msg.Nonce,
+		strconv.Itoa(msg.Status),
+	}
+
+	return ToBytes("STAT", args)
+}
+
+func (msg *RelayStat) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayStat) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayStat(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayStat{}
+	m.Nonce = args[0]
+	m.Status, err = strconv.Atoi(args[1])
+
+	if err != nil {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	msg = &m
+
+	return
+}
+
+//
+// `ACK <nonce> <status>` -> Acknowledging SCHED: status 1 = ok, 0 = err
+//
+
+type RelayAck struct {
+	Nonce   string
+	Status  int
+}
+
+func (msg *RelayAck) ToBytes() []byte {
+	args := []string{
+		msg.Nonce,
+		strconv.Itoa(msg.Status),
+	}
+
+	return ToBytes("ACK", args)
+}
+
+func (msg *RelayAck) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayAck) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayAck(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayAck{}
+	m.Nonce = args[0]
+	m.Status, err = strconv.Atoi(args[1])
+
+	if err != nil {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	msg = &m
+
+	return
+}
+
+//
+// `CONF <nonce> <status>` -> Confirming commit 1/0 = ok/err
+//
+
+type RelayConf struct {
+	Nonce   string
+	Status  int
+}
+
+func (msg *RelayConf) ToBytes() []byte {
+	args := []string{
+		msg.Nonce,
+		strconv.Itoa(msg.Status),
+	}
+
+	return ToBytes("CONF", args)
+}
+
+func (msg *RelayConf) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayConf) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayConf(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayConf{}
+	m.Nonce = args[0]
+	m.Status, err = strconv.Atoi(args[1])
+
+	if err != nil {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	msg = &m
+
+	return
+}
+
+// -----
+
 func IsRelayResponse(t string) bool {
 	for _, msgType := range responseTypes {
 		if t == msgType {
@@ -64,4 +207,7 @@ func IsRelayResponse(t string) bool {
 
 func init() {
 	RegisterMessageType("relay", "HOWDY", NewRelayHowdy)
+	RegisterMessageType("relay", "STAT", NewRelayStat)
+	RegisterMessageType("relay", "ACK", NewRelayAck)
+	RegisterMessageType("relay", "CONF", NewRelayConf)
 }

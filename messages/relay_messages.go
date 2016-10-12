@@ -1,19 +1,18 @@
 package messages
 
-// `HELLO <id> <version> <nonce>` -> I'm server <id> running <version>
-// `PROP <lock> <nonce>` -> I propose locking, please give me your lock status
-// `SCHED <lock> <nonce>` -> We have quorum, nobody is locked, prep to lock
-// `COMM <lock> <timeout> <nonce>` -> Commit lock with X timeout
-// `OFF <lock> <nonce>` -> Release lock if it was held by the source relay
+import (
+	"time"
+)
 
+//
+// `HELLO <id> <version> <nonce>` -> I'm server <id> running <version>
+// 
 
 type RelayIncomingHello struct {
 	Id      string
 	Version string
 	Nonce   string
 }
-
-// RelayIncomingHello
 
 func (msg *RelayIncomingHello) ToBytes() []byte {
 	args := []string{
@@ -28,7 +27,6 @@ func (msg *RelayIncomingHello) ToBytes() []byte {
 func (msg *RelayIncomingHello) SetNonce(nonce string) {
 	msg.Nonce = nonce
 }
-
 
 func (msg *RelayIncomingHello) GetNonce() string {
 	return msg.Nonce
@@ -50,6 +48,189 @@ func NewRelayIncomingHello(args []string) (msg Message, err error) {
 	return
 }
 
+
+//
+// `PROP <lock> <nonce>` -> I propose locking, please give me your lock status
+// 
+
+type RelayIncomingProp struct {
+	Lock  string
+	Nonce string
+}
+
+func (msg *RelayIncomingProp) ToBytes() []byte {
+	args := []string{
+		msg.Lock,
+		msg.Nonce,
+	}
+
+	return ToBytes("PROP", args)
+}
+
+func (msg *RelayIncomingProp) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayIncomingProp) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayIncomingProp(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayIncomingProp{}
+	m.Lock = args[0]
+	m.Nonce = args[1]
+
+	msg = &m
+
+	return
+}
+
+
+//
+// `SCHED <lock> <nonce>` -> We have quorum, nobody is locked, prep to lock
+// 
+
+type RelayIncomingSched struct {
+	Lock  string
+	Nonce string
+}
+
+func (msg *RelayIncomingSched) ToBytes() []byte {
+	args := []string{
+		msg.Lock,
+		msg.Nonce,
+	}
+
+	return ToBytes("SCHED", args)
+}
+
+func (msg *RelayIncomingSched) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayIncomingSched) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayIncomingSched(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayIncomingSched{}
+	m.Lock = args[0]
+	m.Nonce = args[1]
+
+	msg = &m
+
+	return
+}
+
+
+//
+// `COMM <lock> <timeout> <nonce>` -> Commit lock with X timeout
+// 
+
+type RelayIncomingComm struct {
+	Lock    string
+	Timeout time.Duration
+	Nonce   string
+}
+
+func (msg *RelayIncomingComm) ToBytes() []byte {
+	args := []string{
+		msg.Lock,
+		DurationToString(msg.Timeout),
+		msg.Nonce,
+	}
+
+	return ToBytes("COMM", args)
+}
+
+func (msg *RelayIncomingComm) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayIncomingComm) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayIncomingComm(args []string) (msg Message, err error) {
+	if len(args) != 3 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayIncomingComm{}
+	m.Lock = args[0]
+	m.Timeout, err = StringToDuration(args[1])
+	m.Nonce = args[2]
+
+	if err != nil {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	msg = &m
+
+	return
+}
+
+
+//
+// `OFF <lock> <nonce>` -> Release lock if it was held by the source relay
+//
+
+type RelayIncomingOff struct {
+	Lock    string
+	Nonce   string
+}
+
+func (msg *RelayIncomingOff) ToBytes() []byte {
+	args := []string{
+		msg.Lock,
+		msg.Nonce,
+	}
+
+	return ToBytes("OFF", args)
+}
+
+func (msg *RelayIncomingOff) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayIncomingOff) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayIncomingOff(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ERR_INVALID_MESSAGE
+		return
+	}
+
+	m := RelayIncomingOff{}
+	m.Lock = args[0]
+	m.Nonce = args[1]
+
+	msg = &m
+
+	return
+}
+
+
+// -----
+
 func init() {
 	RegisterMessageType("relay", "HELLO", NewRelayIncomingHello)
+	RegisterMessageType("relay", "PROP", NewRelayIncomingProp)
+	RegisterMessageType("relay", "SCHED", NewRelayIncomingSched)
+	RegisterMessageType("relay", "COMM", NewRelayIncomingComm)
+	RegisterMessageType("relay", "OFF", NewRelayIncomingOff)
 }
