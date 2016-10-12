@@ -32,7 +32,7 @@ Each message consists of the keyword (e.g. `HELLO`), space separated arguments, 
  - `NO <nonce>` -> Lock <lock> is not locked
  - `STATS <nonce> <name> <value>` -> Stats response
  - `STATSEND <nonce>` -> All stats responses have been sent
- - `ERR <nonce> <msg>` -> System error, you will be disconnected, maybe try another server
+ - `ERR <nonce> <message>` -> System error, you will be disconnected, maybe try another server
 
 
 ## Relay protocol server <-> server
@@ -49,5 +49,6 @@ Each message consists of the keyword (e.g. `HELLO`), space separated arguments, 
 
  - `HOWDY <nonce> <id> <version>` -> Hi, I'm <id> running <version>
  - `STAT <nonce> <status>` -> Response to PROP: status 0 = ok, 1 = held by this server, 2 = held by another relay
- - `ACK <nonce> <status>` -> Acknowledging SCHED: status 1 = ok, 0 = err
- - `CONF <nonce> <status>` -> Confirming commit 1/0 = ok/err
+ - `ACK <nonce> <status>` -> Acknowledging SCHED: status 0 = ok, 1 = err
+ - `CONF <nonce> <status>` -> Confirming commit 0/1 = ok/err
+ - `ERR <nonce> <message>` -> System error, you will be disconnected

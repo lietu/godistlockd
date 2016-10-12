@@ -6,7 +6,12 @@ import (
 	"bufio"
 	"sync"
 	"github.com/lietu/godistlock/messages"
+	"fmt"
+	"strconv"
+	"time"
 )
+
+const RELAY_ID_PREFIX = "relay:"
 
 type Relay struct {
 	Server        *Server
@@ -29,6 +34,7 @@ func (r *Relay) Close() {
 		r.Alive = false
 		r.Connection.Close()
 		close(r.outgoing)
+		r.Server.RelayManager.RelayDisconnected()
 
 		//for lock := range r.heldLocks {
 		//	r.Server.LockManager.Release(r.ClientId, lock)
@@ -40,6 +46,7 @@ func (r *Relay) Close() {
 func (r *Relay) Error(message string) {
 	msg, _ := messages.NewClientErrResponse(message)
 	r.SendBytes(msg.ToBytes())
+	log.Printf("Relay encountered error: %s", message)
 	r.Close()
 }
 
@@ -65,11 +72,76 @@ func (r *Relay) HandleOutgoing() {
 }
 
 func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
-	r.RelayId = msg.Id
+	r.RelayId = RELAY_ID_PREFIX + msg.Id
 	// Not handling failures here so other server always gets a valid response
 	r.Server.RelayManager.SetRelay(r)
 
 	out, err := messages.NewRelayHowdy([]string{msg.Nonce, r.Server.Id, r.Server.Version})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	r.SendBytes(out.ToBytes())
+}
+
+func (r *Relay) HandleProp(msg *messages.RelayIncomingProp) {
+	// 0 = ok, 1 = held by this server, 2 = held by another relay
+	status := 0
+
+	// Try to get a preliminary lock
+	lock := r.Server.LockManager.TryGet(r.RelayId, msg.Lock, time.Second)
+
+	if lock == nil {
+		clientId := r.Server.LockManager.WhoHas(msg.Lock)
+		if isRelayId(clientId) {
+			status = 2
+		} else {
+			status = 1
+		}
+	}
+
+	out, err := messages.NewRelayStat([]string{msg.Nonce, strconv.Itoa(status)})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	r.SendBytes(out.ToBytes())
+}
+
+func (r *Relay) HandleSched(msg *messages.RelayIncomingSched) {
+	// status 0 = ok, 1 = err
+	status := 0
+
+	// Refresh preliminary lock
+	lock := r.Server.LockManager.TryGet(r.RelayId, msg.Lock, time.Second)
+
+	if lock == nil {
+		status = 1
+	}
+
+	out, err := messages.NewRelayAck([]string{msg.Nonce, strconv.Itoa(status)})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	r.SendBytes(out.ToBytes())
+}
+
+func (r *Relay) HandleComm(msg *messages.RelayIncomingComm) {
+	// status 0 = ok, 1 = err
+	status := 0
+
+	// Establish a firm lock
+	lock := r.Server.LockManager.GetLock(r.RelayId, msg.Lock, msg.Timeout)
+
+	if lock == nil {
+		status = 1
+	}
+
+	out, err := messages.NewRelayConf([]string{msg.Nonce, strconv.Itoa(status)})
 
 	if err != nil {
 		log.Fatalln(err)
@@ -119,8 +191,14 @@ func (r *Relay) Incoming(src []byte) {
 	switch msg := msg.(type) {
 	case *messages.RelayIncomingHello:
 		r.HandleHello(msg)
+	case *messages.RelayIncomingProp:
+		r.HandleProp(msg)
+	case *messages.RelayIncomingSched:
+		r.HandleSched(msg)
+	case *messages.RelayIncomingComm:
+		r.HandleComm(msg)
 	default:
-		r.Error("Invalid keyword")
+		r.Error(fmt.Sprintf("Unsupported incoming keyword: %s", keyword))
 		r.Close()
 	}
 }
@@ -148,7 +226,7 @@ func (r *Relay) DoHello(onComplete func()) {
 	r.Expect(nonce, func(msg messages.Message) {
 		hello := msg.(*messages.RelayHowdy)
 
-		r.RelayId = hello.Id
+		r.RelayId = RELAY_ID_PREFIX + hello.Id
 
 		onComplete()
 	})
@@ -177,9 +255,8 @@ func (r *Relay) Run() {
 	}
 
 	// Nothing more to read from the connection, so I guess it was closed
-	r.Close()
-
 	log.Printf("%s connection closed", r.RelayId)
+	r.Close()
 }
 
 func NewRelay(server *Server, connection net.Conn) *Relay {
@@ -201,4 +278,14 @@ func NewRelay(server *Server, connection net.Conn) *Relay {
 	}
 
 	return &r
+}
+
+func isRelayId(id string) bool {
+	l := len(RELAY_ID_PREFIX)
+
+	if len(id) < l {
+		return false
+	}
+
+	return id[:l] == RELAY_ID_PREFIX
 }

@@ -34,7 +34,7 @@ func (msg *RelayIncomingHello) GetNonce() string {
 
 func NewRelayIncomingHello(args []string) (msg Message, err error) {
 	if len(args) != 3 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -77,7 +77,7 @@ func (msg *RelayIncomingProp) GetNonce() string {
 
 func NewRelayIncomingProp(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -119,7 +119,7 @@ func (msg *RelayIncomingSched) GetNonce() string {
 
 func NewRelayIncomingSched(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -163,7 +163,7 @@ func (msg *RelayIncomingComm) GetNonce() string {
 
 func NewRelayIncomingComm(args []string) (msg Message, err error) {
 	if len(args) != 3 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -173,7 +173,7 @@ func NewRelayIncomingComm(args []string) (msg Message, err error) {
 	m.Nonce = args[2]
 
 	if err != nil {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -211,7 +211,7 @@ func (msg *RelayIncomingOff) GetNonce() string {
 
 func NewRelayIncomingOff(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 

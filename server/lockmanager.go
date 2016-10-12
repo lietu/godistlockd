@@ -25,6 +25,10 @@ type Lock struct {
 	ClientId string
 }
 
+func (l *Lock) MakeValidFor(timeout time.Duration) {
+	l.Expires = monotime.Now() + uint64(timeout)
+}
+
 type LockRequest struct {
 	Name     string
 	ClientId string
@@ -67,6 +71,22 @@ func (lm *LockManager) TryGet(clientId string, name string, timeout time.Duratio
 	return <-receiver.Done
 }
 
+func (lm *LockManager) WhoHas(name string) string {
+	receiver := NewLockReceiver()
+	receiver.Name = name
+	receiver.Type = TYPE_CHECK
+
+	lm.requestChan <- receiver
+
+	result := <-receiver.Done
+
+	if result == nil {
+		return ""
+	} else {
+		return result.ClientId
+	}
+}
+
 func (lm *LockManager) IsLocked(name string) string {
 	receiver := NewLockReceiver()
 	receiver.Name = name
@@ -97,9 +117,9 @@ func (lm *LockManager) giveLock(receiver *LockRequest) {
 	lock := Lock{}
 
 	// Use monotonic clocks, time.Now() can jump around
-	lock.Expires = monotime.Now() + uint64(receiver.Timeout)
 	lock.Fence = NewFence()
 	lock.ClientId = receiver.ClientId
+	lock.MakeValidFor(receiver.Timeout)
 
 	lm.locks[receiver.Name] = &lock
 
@@ -158,10 +178,12 @@ func (lm *LockManager) handleGet(clientId string, request *LockRequest) (result 
 		result = true
 	} else if clientId == request.ClientId {
 		if DEBUG {
-			log.Printf("Client asked to re-establish lock %s", request.Name)
+			log.Printf("Client %s asked to re-establish lock %s", clientId, request.Name)
 		}
 
-		request.Done <- lm.locks[request.Name]
+		lock := lm.locks[request.Name]
+		lock.MakeValidFor(request.Timeout)
+		request.Done <- lock
 		result = true
 	}
 
@@ -177,10 +199,12 @@ func (lm *LockManager) handleTry(clientId string, request *LockRequest) {
 		lm.giveLock(request)
 	} else if clientId == request.ClientId {
 		if DEBUG {
-			log.Printf("Client asked to re-establish lock %s", request.Name)
+			log.Printf("Client %s asked to re-establish lock %s", clientId, request.Name)
 		}
 
-		request.Done <- lm.locks[request.Name]
+		lock := lm.locks[request.Name]
+		lock.MakeValidFor(request.Timeout)
+		request.Done <- lock
 	} else {
 		if DEBUG {
 			log.Printf("Lock %s was taken, and request did not want to wait for it.", request.Name)

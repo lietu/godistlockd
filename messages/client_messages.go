@@ -64,7 +64,7 @@ func (msg *ClientIncomingOff) ToBytes() []byte {
 
 func NewClientIncomingHello(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -79,7 +79,7 @@ func NewClientIncomingHello(args []string) (msg Message, err error) {
 
 func NewClientIncomingOn(args []string) (msg Message, err error) {
 	if len(args) != 3 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -100,7 +100,7 @@ func NewClientIncomingOn(args []string) (msg Message, err error) {
 
 func NewClientIncomingOff(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 

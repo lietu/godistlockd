@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 	"strconv"
+	"log"
 )
 
 type MessageConstructor func(args []string) (Message, error)
@@ -14,7 +15,7 @@ func ParseMessage(src []byte) (keyword string, args []string, err error) {
 	parts := strings.Split(string(src), " ")
 
 	if len(parts) == 0 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -49,6 +50,18 @@ func RegisterMessageType(category string, keyword string, constructor MessageCon
 	messageTypes[category][keyword] = constructor
 }
 
+func printTypes() {
+	log.Print("Currently registered message types")
+	for category, keywords := range messageTypes {
+		log.Printf("%s:", category)
+		for keyword, _ := range keywords {
+			log.Printf(" - %s", keyword)
+		}
+		log.Println("")
+	}
+}
+
+
 func LoadMessage(category string, src []byte) (keyword string, message Message, err error) {
 	keyword, args, err := ParseMessage(src)
 
@@ -57,14 +70,15 @@ func LoadMessage(category string, src []byte) (keyword string, message Message, 
 	}
 
 	if _, ok := messageTypes[category]; !ok {
-		err = ERR_INVALID_CATEGORY
+		err = ErrInvalidCategory
 		return
 	}
 
 	constructor, ok := messageTypes[category][keyword]
 
 	if !ok {
-		err = ERR_INVALID_KEYWORD
+		err = InvalidKeyword(keyword)
+		printTypes()
 		return
 	}
 

@@ -174,6 +174,10 @@ func (rm *RelayManager) SetRelay(relay *Relay) bool {
 	return true
 }
 
+func (rm *RelayManager) RelayDisconnected() {
+	go rm.updateQuorum()
+}
+
 func (rm *RelayManager) addPendingConnection(addr string) {
 	rm.serverMutex.Lock()
 	defer rm.serverMutex.Unlock()
@@ -240,9 +244,104 @@ func (rm *RelayManager) checkRelays() {
 	}
 }
 
+func (rm *RelayManager) ProposeLock(name string) bool {
+	if !rm.canHaveQuorum {
+		log.Print("Can't have quorum, not gonna propose locking")
+		return false
+	}
+
+	log.Printf("Proposing locking of %s", name)
+	msg, err := messages.NewRelayIncomingProp([]string{name, "nonce"})
+
+	if err != nil {
+		log.Fatal("Failed to create outgoing PROP")
+	}
+
+	responses := rm.GetRelayResponses(msg.(messages.RelayMessage))
+
+	ok := 0
+	for _, response := range responses {
+		if response == nil {
+			continue
+		}
+
+		r := response.(*messages.RelayStat)
+		if r.Status == 0 {
+			ok += 1
+		}
+	}
+
+	return ok >= rm.quorumNeed
+}
+
+
+func (rm *RelayManager) SchedLock(name string) bool {
+	if !rm.canHaveQuorum {
+		log.Print("Can't have quorum, not gonna request locking")
+		return false
+	}
+
+	log.Printf("Requesting lock of %s", name)
+	msg, err := messages.NewRelayIncomingSched([]string{name, "nonce"})
+
+	if err != nil {
+		log.Fatal("Failed to create outgoing SCHED")
+	}
+
+	responses := rm.GetRelayResponses(msg.(messages.RelayMessage))
+
+	ok := 0
+	for _, response := range responses {
+		if response == nil {
+			continue
+		}
+
+		r := response.(*messages.RelayAck)
+		if r.Status == 0 {
+			ok += 1
+		}
+	}
+
+	return ok >= rm.quorumNeed
+}
+
+
+
+func (rm *RelayManager) CommLock(name string, timeout time.Duration) bool {
+	if !rm.canHaveQuorum {
+		log.Print("Can't have quorum, can't commit lock")
+		return false
+	}
+
+	log.Printf("Committing lock %s", name)
+	msg, err := messages.NewRelayIncomingComm([]string{name, messages.DurationToString(timeout), "nonce"})
+
+	if err != nil {
+		log.Fatal("Failed to create outgoing COMM")
+	}
+
+	responses := rm.GetRelayResponses(msg.(messages.RelayMessage))
+
+	ok := 0
+	for _, response := range responses {
+		if response == nil {
+			continue
+		}
+
+		r := response.(*messages.RelayConf)
+		if r.Status == 0 {
+			ok += 1
+		}
+	}
+
+	return ok >= rm.quorumNeed
+}
+
 func (rm *RelayManager) Run() {
 	checkRelaysInterval := time.Millisecond
 	rm.checkRelays()
+
+	i := 0
 
 	for {
 		select {
@@ -251,24 +350,25 @@ func (rm *RelayManager) Run() {
 		case <-time.After(checkRelaysInterval):
 			rm.checkRelays()
 
-			log.Printf("%d relays connected", len(rm.GetRelayConnections()))
+			i += 1
 
-			if !rm.Server.Testing {
-				break
+			if i % 500 == 0 {
+				connections := rm.GetRelayConnections()
+				log.Printf("%d relays connected", len(connections))
+				for _, c := range connections {
+					log.Printf(" - %s", c.RelayId)
+				}
 			}
 
-			go func() {
-				msg, _ := messages.NewRelayIncomingHello([]string{rm.Server.Id, rm.Server.Version, "nonce"})
-
-				start := time.Now()
-				responses := rm.GetRelayResponses(msg.(messages.RelayMessage))
-				duration := time.Since(start)
-
-				log.Printf("Got %d responses in %f s", len(responses), float32(duration) / float32(time.Second))
-				for _, response := range responses {
-					log.Printf("%+v", response)
+			if i % 250 == 0 {
+				if !rm.Server.Testing {
+					break
 				}
-			}()
+				go func() {
+					log.Printf("%+v", rm.Server.DoLock("janne", "mah-lock", time.Minute))
+				}()
+			}
+
 		}
 	}
 }

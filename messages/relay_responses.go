@@ -41,7 +41,7 @@ func (msg *RelayHowdy) GetNonce() string {
 
 func NewRelayHowdy(args []string) (msg Message, err error) {
 	if len(args) != 3 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -83,7 +83,7 @@ func (msg *RelayStat) GetNonce() string {
 
 func NewRelayStat(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -92,7 +92,7 @@ func NewRelayStat(args []string) (msg Message, err error) {
 	m.Status, err = strconv.Atoi(args[1])
 
 	if err != nil {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -129,7 +129,7 @@ func (msg *RelayAck) GetNonce() string {
 
 func NewRelayAck(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -138,7 +138,7 @@ func NewRelayAck(args []string) (msg Message, err error) {
 	m.Status, err = strconv.Atoi(args[1])
 
 	if err != nil {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -175,7 +175,7 @@ func (msg *RelayConf) GetNonce() string {
 
 func NewRelayConf(args []string) (msg Message, err error) {
 	if len(args) != 2 {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
 
@@ -184,9 +184,50 @@ func NewRelayConf(args []string) (msg Message, err error) {
 	m.Status, err = strconv.Atoi(args[1])
 
 	if err != nil {
-		err = ERR_INVALID_MESSAGE
+		err = ErrInvalidMessage
 		return
 	}
+
+	msg = &m
+
+	return
+}
+
+//
+// `ERR <nonce> <message>` -> System error, you will be disconnected
+//
+
+type RelayErr struct {
+	Nonce   string
+	Message string
+}
+
+func (msg *RelayErr) ToBytes() []byte {
+	args := []string{
+		msg.Nonce,
+		msg.Message,
+	}
+
+	return ToBytes("ERR", args)
+}
+
+func (msg *RelayErr) SetNonce(nonce string) {
+	msg.Nonce = nonce
+}
+
+func (msg *RelayErr) GetNonce() string {
+	return msg.Nonce
+}
+
+func NewRelayErr(args []string) (msg Message, err error) {
+	if len(args) != 2 {
+		err = ErrInvalidMessage
+		return
+	}
+
+	m := RelayErr{}
+	m.Nonce = args[0]
+	m.Message = args[1]
 
 	msg = &m
 
@@ -210,4 +251,5 @@ func init() {
 	RegisterMessageType("relay", "STAT", NewRelayStat)
 	RegisterMessageType("relay", "ACK", NewRelayAck)
 	RegisterMessageType("relay", "CONF", NewRelayConf)
+	RegisterMessageType("relay", "ERR", NewRelayErr)
 }
