@@ -207,6 +207,7 @@ func (rm *RelayManager) connect(addr string) {
 		log.Println(err)
 
 		// Failures happen, try again later
+		rm.removePendingConnection(addr)
 		return
 	}
 
