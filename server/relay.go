@@ -5,7 +5,7 @@ import (
 	"log"
 	"bufio"
 	"sync"
-	"github.com/lietu/godistlock/messages"
+	"github.com/lietu/godistlockd/messages"
 	"fmt"
 	"strconv"
 	"time"

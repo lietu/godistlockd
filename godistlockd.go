@@ -3,7 +3,7 @@ package main
 
 import (
 	"flag"
-	"github.com/lietu/godistlock/server"
+	"github.com/lietu/godistlockd/server"
 	"fmt"
 )
 

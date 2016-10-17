@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/lietu/godistlock/messages"
+	"github.com/lietu/godistlockd/messages"
 	"time"
 	"sync"
 	"net"
