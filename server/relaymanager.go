@@ -23,9 +23,11 @@ type RelayManager struct {
 	pendingConnections    []string
 	serverIds             map[string]string
 	serverMutex           *sync.Mutex
+	connectMutex          *sync.Mutex
 	quorumNeed            int
 	CanHaveQuorum         bool
 	relayAddressesHasSelf bool
+	connecting            bool
 }
 
 func (rm *RelayManager) Stop() {
@@ -237,11 +239,33 @@ func (rm *RelayManager) connect(addr string) {
 }
 
 func (rm *RelayManager) checkRelays() {
-	missing := rm.getMissingRelays()
-
-	for _, addr := range missing {
-		go rm.connect(addr)
+	if rm.connecting {
+		return
 	}
+
+	rm.connectMutex.Lock()
+	rm.connecting = true
+	defer rm.connectMutex.Unlock()
+
+	missing := rm.getMissingRelays()
+	count := len(missing)
+
+	if count > 0 {
+		wg := sync.WaitGroup{}
+		wg.Add(count)
+		log.Printf("Missing connection to %d relays", len(missing))
+
+		for _, addr := range missing {
+			go func(addr string) {
+				rm.connect(addr)
+				wg.Done()
+			}(addr)
+		}
+
+		wg.Wait()
+	}
+
+	rm.connecting = false
 }
 
 func (rm *RelayManager) ProposeLock(name string) bool {
@@ -274,7 +298,6 @@ func (rm *RelayManager) ProposeLock(name string) bool {
 	return ok >= rm.quorumNeed
 }
 
-
 func (rm *RelayManager) SchedLock(name string) bool {
 	if !rm.CanHaveQuorum {
 		log.Print("Can't have quorum, not gonna request locking")
@@ -304,8 +327,6 @@ func (rm *RelayManager) SchedLock(name string) bool {
 
 	return ok >= rm.quorumNeed
 }
-
-
 
 func (rm *RelayManager) CommLock(name string, timeout time.Duration) bool {
 	if !rm.CanHaveQuorum {
@@ -382,6 +403,7 @@ func NewRelayManager(server *Server) *RelayManager {
 	rm.Server = server
 	rm.quitChan = make(chan bool)
 	rm.relayAddresses = server.GetRelayAddresses()
+	rm.connectMutex = &sync.Mutex{}
 	rm.serverMutex = &sync.Mutex{}
 	rm.serverIds = map[string]string{}
 	rm.relayConnections = RelayConnections{}
@@ -389,6 +411,7 @@ func NewRelayManager(server *Server) *RelayManager {
 	rm.quorumNeed = calculateQuorum(len(rm.relayAddresses) + 1)
 	rm.relayAddressesHasSelf = false
 	rm.CanHaveQuorum = false
+	rm.connecting = false
 
 	return &rm
 }
