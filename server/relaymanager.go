@@ -109,11 +109,16 @@ func (rm *RelayManager) getMissingRelays() []string {
 	}
 
 	// + Addresses for servers I know ID for, but are not connected
+	myId := RELAY_ID_PREFIX + rm.Server.Id
 	for addr, id := range rm.serverIds {
-		if _, ok := rm.relayConnections[id]; !ok {
-			if id != rm.Server.Id {
-				missing = append(missing, addr)
-			}
+		if id == myId {
+			// Skip self
+			continue
+		}
+
+		r, ok := rm.relayConnections[id]
+		if !ok || r.Alive == false {
+			missing = append(missing, addr)
 		}
 	}
 
@@ -359,21 +364,27 @@ func (rm *RelayManager) CommLock(name string, timeout time.Duration) bool {
 }
 
 func (rm *RelayManager) Run() {
-	checkRelaysInterval := time.Millisecond
 	rm.checkRelays()
 
-	i := 0
+	checks := time.Millisecond * 25
+
+	status := time.Now()
+	test := time.Now()
+	relayCheck := time.Now()
 
 	for {
 		select {
 		case <-rm.quitChan:
 			return
-		case <-time.After(checkRelaysInterval):
-			rm.checkRelays()
+		case <-time.After(checks):
+			if time.Since(relayCheck) > time.Second {
+				relayCheck = time.Now()
+				rm.checkRelays()
+			}
 
-			i += 1
+			if time.Since(status) > time.Second * 5 {
+				status = time.Now()
 
-			if i % 500 == 0 {
 				connections := rm.GetRelayConnections()
 				log.Printf("%d relays connected", len(connections))
 				for _, c := range connections {
@@ -381,7 +392,9 @@ func (rm *RelayManager) Run() {
 				}
 			}
 
-			if i % 250 == 0 {
+			if time.Since(test) > time.Second {
+				test = time.Now()
+
 				if !rm.Server.Testing {
 					break
 				}
