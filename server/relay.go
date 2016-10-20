@@ -71,7 +71,7 @@ func (r *Relay) HandleOutgoing() {
 	log.Printf("%s outgoing queue closed", r.RelayId)
 }
 
-func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
+func (r *Relay) OnHello(msg *messages.RelayIncomingHello) {
 	r.RelayId = RELAY_ID_PREFIX + msg.Id
 	// Not handling failures here so other server always gets a valid response
 	r.Server.RelayManager.SetRelay(r)
@@ -85,7 +85,7 @@ func (r *Relay) HandleHello(msg *messages.RelayIncomingHello) {
 	r.SendBytes(out.ToBytes())
 }
 
-func (r *Relay) HandleProp(msg *messages.RelayIncomingProp) {
+func (r *Relay) OnPropose(msg *messages.RelayIncomingProp) {
 	// 0 = ok, 1 = held by this server, 2 = held by another relay, 3 = can't have quorum
 	status := 0
 
@@ -114,7 +114,7 @@ func (r *Relay) HandleProp(msg *messages.RelayIncomingProp) {
 	r.SendBytes(out.ToBytes())
 }
 
-func (r *Relay) HandleSched(msg *messages.RelayIncomingSched) {
+func (r *Relay) OnSchedule(msg *messages.RelayIncomingSched) {
 	// status 0 = ok, 1 = err
 	status := 0
 
@@ -134,7 +134,7 @@ func (r *Relay) HandleSched(msg *messages.RelayIncomingSched) {
 	r.SendBytes(out.ToBytes())
 }
 
-func (r *Relay) HandleComm(msg *messages.RelayIncomingComm) {
+func (r *Relay) OnCommit(msg *messages.RelayIncomingComm) {
 	// status 0 = ok, 1 = err
 	status := 0
 
@@ -194,13 +194,13 @@ func (r *Relay) Incoming(src []byte) {
 
 	switch msg := msg.(type) {
 	case *messages.RelayIncomingHello:
-		r.HandleHello(msg)
+		r.OnHello(msg)
 	case *messages.RelayIncomingProp:
-		r.HandleProp(msg)
+		r.OnPropose(msg)
 	case *messages.RelayIncomingSched:
-		r.HandleSched(msg)
+		r.OnSchedule(msg)
 	case *messages.RelayIncomingComm:
-		r.HandleComm(msg)
+		r.OnCommit(msg)
 	default:
 		r.Error(fmt.Sprintf("Unsupported incoming keyword: %s", keyword))
 		r.Close()

@@ -7,6 +7,8 @@ import (
 	"net"
 	"log"
 	"math"
+	"fmt"
+	"math/rand"
 )
 
 type RelayConnections map[string]*Relay
@@ -366,7 +368,7 @@ func (rm *RelayManager) CommLock(name string, timeout time.Duration) bool {
 func (rm *RelayManager) Run() {
 	rm.checkRelays()
 
-	checks := time.Millisecond * 25
+	checks := time.Millisecond * 5
 
 	status := time.Now()
 	test := time.Now()
@@ -392,14 +394,15 @@ func (rm *RelayManager) Run() {
 				}
 			}
 
-			if time.Since(test) > time.Second {
+			if time.Since(test) > time.Millisecond {
 				test = time.Now()
 
 				if !rm.Server.Testing {
 					break
 				}
 				go func() {
-					log.Printf("%+v", rm.Server.DoLock("janne", "mah-lock", time.Minute))
+					lock := fmt.Sprintf("mah-lock-%d", rand.Int31())
+					log.Printf("%+v", rm.Server.DoLock("janne", lock, time.Minute))
 				}()
 			}
 
